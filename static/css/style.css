@@ -1,0 +1,197 @@
+/* 全局 reset 样式 */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background-color: #f5f7fb;
+    min-height: 100vh;
+    color: #333;
+}
+
+/* 导航栏样式 */
+.navbar {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: #fff;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 30px;
+    height: 60px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.nav-left {
+    display: flex;
+    align-items: center;
+}
+
+.brand {
+    font-size: 20px;
+    font-weight: bold;
+    letter-spacing: 1px;
+}
+
+.nav-right {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.nav-welcome {
+    font-size: 14px;
+    opacity: 0.9;
+}
+
+.nav-link {
+    color: #fff;
+    text-decoration: none;
+    font-size: 14px;
+    padding: 6px 16px;
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    border-radius: 4px;
+    transition: background 0.3s;
+}
+
+.nav-link:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* 容器样式 */
+.container {
+    max-width: 600px;
+    margin: 60px auto;
+    padding: 0 20px;
+}
+
+/* 卡片样式 */
+.card {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    padding: 40px;
+}
+
+.login-card {
+    max-width: 420px;
+    margin: 0 auto;
+}
+
+.welcome-card {
+    text-align: center;
+}
+
+.welcome-card h2 {
+    margin-bottom: 10px;
+    color: #333;
+}
+
+.welcome-card p {
+    color: #666;
+    margin-bottom: 24px;
+}
+
+/* 表单样式 */
+.form {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+}
+
+.form-group label {
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 6px;
+    color: #555;
+}
+
+.form-group input {
+    padding: 10px 14px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.3s;
+}
+
+.form-group input:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+}
+
+/* 按钮样式 */
+.btn {
+    display: inline-block;
+    padding: 10px 24px;
+    border: none;
+    border-radius: 6px;
+    font-size: 15px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 0.3s;
+}
+
+.btn-primary {
+    background: #667eea;
+    color: #fff;
+}
+
+.btn-primary:hover {
+    background: #5a6fd6;
+}
+
+/* 错误提示 */
+.error-msg {
+    background: #fff0f0;
+    color: #d63031;
+    padding: 10px 14px;
+    border-radius: 6px;
+    border: 1px solid #ffd5d5;
+    font-size: 14px;
+    text-align: center;
+}
+
+/* 用户信息列表 */
+.user-info {
+    margin: 24px 0;
+    text-align: left;
+}
+
+.user-info h3 {
+    font-size: 16px;
+    color: #555;
+    margin-bottom: 14px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #eee;
+}
+
+.info-list {
+    list-style: none;
+    padding: 0;
+}
+
+.info-list li {
+    padding: 8px 0;
+    font-size: 15px;
+    border-bottom: 1px dashed #f0f0f0;
+}
+
+.info-list li:last-child {
+    border-bottom: none;
+}
+
+.info-list .label {
+    font-weight: 600;
+    color: #555;
+    display: inline-block;
+    min-width: 80px;
+}
