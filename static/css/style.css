@@ -195,3 +195,22 @@ body {
     display: inline-block;
     min-width: 80px;
 }
+
+/* 安全退出表单 */
+.inline-form {
+    display: inline;
+    margin: 0;
+}
+
+.nav-button {
+    background: transparent;
+    border: none;
+    padding: 0;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+}
+
+.logout-form {
+    margin-top: 20px;
+}
