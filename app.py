@@ -1,8 +1,9 @@
 import os
 import secrets
+import sqlite3
 from datetime import timedelta
 
-from flask import Flask, render_template, request, redirect, session, url_for
+from flask import Flask, render_template, request, redirect, session, url_for, flash
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_wtf.csrf import CSRFProtect
@@ -66,6 +67,45 @@ USERS = {
 DUMMY_PASSWORD_HASH = ADMIN_HASH
 
 
+def init_db():
+    """初始化 SQLite 数据库（Day3 教学漏洞数据库）。"""
+    db_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+    os.makedirs(db_dir, exist_ok=True)
+    db_path = os.path.join(db_dir, "users.db")
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE,
+            password TEXT,
+            email TEXT,
+            phone TEXT
+        )
+    """)
+    # Day3 原始漏洞版本：明文密码存储
+    cursor.execute(
+        "INSERT OR IGNORE INTO users (username, password, email, phone) "
+        "VALUES ('admin', 'admin123', 'admin@example.com', '13800138000')"
+    )
+    cursor.execute(
+        "INSERT OR IGNORE INTO users (username, password, email, phone) "
+        "VALUES ('alice', 'alice2025', 'alice@example.com', '13900139001')"
+    )
+    conn.commit()
+    conn.close()
+    print("[SQLite] 数据库初始化完成")
+
+
+def get_db():
+    """获取 SQLite 数据库连接。"""
+    db_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+    db_path = os.path.join(db_dir, "users.db")
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
 def safe_user_info(user):
     """只向页面传递允许公开的字段，不包含密码哈希。"""
     return {
@@ -98,7 +138,13 @@ def index():
     username = session.get("username")
     user = USERS.get(username)
     public_user = safe_user_info(user) if user else None
-    return render_template("index.html", user=public_user)
+    return render_template(
+        "index.html",
+        user=public_user,
+        search_results=None,
+        search_keyword="",
+        search_error=None,
+    )
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -143,6 +189,78 @@ def logout():
     return redirect(url_for("index"))
 
 
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    if request.method == "POST":
+        username = (request.form.get("username") or "").strip()
+        password = request.form.get("password") or ""
+        email = (request.form.get("email") or "").strip()
+        phone = (request.form.get("phone") or "").strip()
+
+        # Day3 原始漏洞版本：故意使用 f-string 拼接 SQL
+        sql = f"INSERT INTO users (username, password, email, phone) VALUES ('{username}', '{password}', '{email}', '{phone}')"
+
+        try:
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute(sql)
+            conn.commit()
+            conn.close()
+            flash("注册成功，请登录")
+            return redirect(url_for("login"))
+        except sqlite3.IntegrityError:
+            return render_template("register.html", error="用户名已存在"), 409
+        except sqlite3.Error as e:
+            return render_template("register.html", error=f"数据库错误"), 400
+
+    return render_template("register.html")
+
+
+@app.route("/search", methods=["GET"])
+def search():
+    if "username" not in session:
+        return redirect(url_for("login"))
+
+    keyword = request.args.get("keyword", "").strip()
+    search_results = None
+    search_error = None
+
+    if keyword:
+        # Day3 原始漏洞版本：故意使用 f-string 拼接 SQL
+        sql = f"SELECT id, username, email, phone FROM users WHERE username LIKE '%{keyword}%' OR email LIKE '%{keyword}%'"
+        print(f"[SQL] 执行搜索 SQL: {sql}")
+
+        try:
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute(sql)
+            rows = cursor.fetchall()
+            search_results = []
+            for row in rows:
+                search_results.append({
+                    "id": row["id"],
+                    "username": row["username"],
+                    "email": row["email"],
+                    "phone": row["phone"],
+                })
+            conn.close()
+        except sqlite3.Error as e:
+            print(f"[SQL] 搜索错误: {e}")
+            search_error = "搜索查询出错"
+
+    username = session.get("username")
+    user = USERS.get(username)
+    public_user = safe_user_info(user) if user else None
+
+    return render_template(
+        "index.html",
+        user=public_user,
+        search_results=search_results,
+        search_keyword=keyword,
+        search_error=search_error,
+    )
+
+
 @app.errorhandler(429)
 def rate_limit_exceeded(_error):
     return render_template(
@@ -151,5 +269,6 @@ def rate_limit_exceeded(_error):
 
 
 if __name__ == "__main__":
+    init_db()
     debug_enabled = os.environ.get("FLASK_DEBUG") == "1"
     app.run(debug=debug_enabled, host="0.0.0.0", port=5000)
