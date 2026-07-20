@@ -7,7 +7,7 @@ from flask import Flask, render_template, request, redirect, session, url_for, f
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_wtf.csrf import CSRFProtect
-from werkzeug.security import check_password_hash
+from werkzeug.security import check_password_hash, generate_password_hash
 
 
 app = Flask(__name__)
@@ -83,14 +83,18 @@ def init_db():
             phone TEXT
         )
     """)
-    # Day3 原始漏洞版本：明文密码存储
+    # 默认用户密码以哈希形式存储
+    admin_pw = generate_password_hash("admin123")
+    alice_pw = generate_password_hash("alice2025")
     cursor.execute(
         "INSERT OR IGNORE INTO users (username, password, email, phone) "
-        "VALUES ('admin', 'admin123', 'admin@example.com', '13800138000')"
+        "VALUES ('admin', ?, 'admin@example.com', '13800138000')",
+        (admin_pw,)
     )
     cursor.execute(
         "INSERT OR IGNORE INTO users (username, password, email, phone) "
-        "VALUES ('alice', 'alice2025', 'alice@example.com', '13900139001')"
+        "VALUES ('alice', ?, 'alice@example.com', '13900139001')",
+        (alice_pw,)
     )
     conn.commit()
     conn.close()
@@ -197,13 +201,25 @@ def register():
         email = (request.form.get("email") or "").strip()
         phone = (request.form.get("phone") or "").strip()
 
-        # Day3 原始漏洞版本：故意使用 f-string 拼接 SQL
-        sql = f"INSERT INTO users (username, password, email, phone) VALUES ('{username}', '{password}', '{email}', '{phone}')"
+        # 输入验证
+        if (
+            not username or len(username) > 50
+            or not password or len(password) < 6 or len(password) > 128
+            or not email or len(email) > 100
+            or not phone or len(phone) > 20
+        ):
+            return render_template(
+                "register.html", error="输入格式不正确（用户名1-50，密码6-128，邮箱1-100，手机1-20）"
+            ), 400
+
+        # 使用参数化查询和密码哈希
+        pw_hash = generate_password_hash(password)
+        sql = "INSERT INTO users (username, password, email, phone) VALUES (?, ?, ?, ?)"
 
         try:
             conn = get_db()
             cursor = conn.cursor()
-            cursor.execute(sql)
+            cursor.execute(sql, (username, pw_hash, email, phone))
             conn.commit()
             conn.close()
             flash("注册成功，请登录")
@@ -226,27 +242,30 @@ def search():
     search_error = None
 
     if keyword:
-        # Day3 原始漏洞版本：故意使用 f-string 拼接 SQL
-        sql = f"SELECT id, username, email, phone FROM users WHERE username LIKE '%{keyword}%' OR email LIKE '%{keyword}%'"
-        print(f"[SQL] 执行搜索 SQL: {sql}")
+        if len(keyword) > 100:
+            search_error = "搜索关键词过长"
+        else:
+            # 使用参数化查询修复 SQL 注入
+            sql = "SELECT id, username, email, phone FROM users WHERE username LIKE ? OR email LIKE ?"
+            print(f"[SQL] 执行搜索: keyword='{keyword}'")
 
-        try:
-            conn = get_db()
-            cursor = conn.cursor()
-            cursor.execute(sql)
-            rows = cursor.fetchall()
-            search_results = []
-            for row in rows:
-                search_results.append({
-                    "id": row["id"],
-                    "username": row["username"],
-                    "email": row["email"],
-                    "phone": row["phone"],
-                })
-            conn.close()
-        except sqlite3.Error as e:
-            print(f"[SQL] 搜索错误: {e}")
-            search_error = "搜索查询出错"
+            try:
+                conn = get_db()
+                cursor = conn.cursor()
+                cursor.execute(sql, (f"%{keyword}%", f"%{keyword}%"))
+                rows = cursor.fetchall()
+                search_results = []
+                for row in rows:
+                    search_results.append({
+                        "id": row["id"],
+                        "username": row["username"],
+                        "email": row["email"],
+                        "phone": row["phone"],
+                    })
+                conn.close()
+            except sqlite3.Error as e:
+                print(f"[SQL] 搜索错误: {e}")
+                search_error = "搜索查询出错"
 
     username = session.get("username")
     user = USERS.get(username)
