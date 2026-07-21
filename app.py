@@ -1,7 +1,10 @@
 import os
 import secrets
 import sqlite3
+import logging
+import uuid
 from datetime import timedelta
+from pathlib import Path
 
 from flask import Flask, render_template, request, redirect, session, url_for, flash
 from flask_limiter import Limiter
@@ -20,7 +23,7 @@ app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
     SESSION_COOKIE_SECURE=os.environ.get("SESSION_COOKIE_SECURE") == "1",
-    MAX_CONTENT_LENGTH=16 * 1024,
+    MAX_CONTENT_LENGTH=16 * 1024 * 1024,
 )
 
 csrf = CSRFProtect(app)
@@ -65,6 +68,36 @@ USERS = {
 
 # 用于不存在用户的密码校验，降低通过响应耗时枚举用户名的可能性。
 DUMMY_PASSWORD_HASH = ADMIN_HASH
+
+# 上传目录
+UPLOAD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "uploads")
+
+
+def deploy_htaccess():
+    """在上传目录部署 .htaccess 以禁止 PHP 执行。"""
+    htaccess_path = os.path.join(UPLOAD_DIR, ".htaccess")
+    if not os.path.exists(htaccess_path):
+        try:
+            os.makedirs(UPLOAD_DIR, exist_ok=True)
+            with open(htaccess_path, "w") as f:
+                f.write('<FilesMatch "\\.(php|phtml|php3|php4|php5)$">\n')
+                f.write("    Require all denied\n")
+                f.write("</FilesMatch>\n")
+            print(f"[安全] .htaccess 已部署到 {htaccess_path}")
+        except Exception as e:
+            print(f"[警告] .htaccess 部署失败: {e}")
+
+
+# 审计日志配置
+audit_logger = logging.getLogger("upload_audit")
+audit_logger.setLevel(logging.INFO)
+os.makedirs(os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs"), exist_ok=True)
+audit_handler = logging.FileHandler(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs", "upload.log"),
+    encoding="utf-8"
+)
+audit_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
+audit_logger.addHandler(audit_handler)
 
 
 def init_db():
@@ -130,9 +163,12 @@ def add_security_headers(response):
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
         "style-src 'self'; "
+        "img-src 'self' data:; "
         "form-action 'self'; "
         "frame-ancestors 'none'; "
-        "base-uri 'self'"
+        "base-uri 'self'; "
+        "script-src 'self'; "
+        "object-src 'none'"
     )
     return response
 
@@ -280,6 +316,77 @@ def search():
     )
 
 
+@app.route("/upload", methods=["GET", "POST"])
+def upload():
+    if "username" not in session:
+        return redirect(url_for("login"))
+
+    if request.method == "POST":
+        if "file" not in request.files:
+            return render_template("upload.html", error="未选择文件"), 400
+
+        file = request.files["file"]
+        if file.filename == "":
+            return render_template("upload.html", error="未选择文件"), 400
+
+        # 校验文件扩展名
+        allowed_extensions = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".ico"}
+        original_ext = os.path.splitext(file.filename)[1].lower()
+        if original_ext not in allowed_extensions:
+            return render_template("upload.html", error="仅允许上传图片文件（jpg, jpeg, png, gif, webp, bmp, ico）"), 400
+
+        # 校验文件内容（魔数检查）
+        file.seek(0)
+        magic_bytes = file.read(12)
+        file.seek(0)
+
+        is_valid_image = False
+        if magic_bytes[:8] == b"\x89PNG\r\n\x1a\n":
+            is_valid_image = True  # PNG
+        elif magic_bytes[:2] in (b"\xff\xd8",):
+            is_valid_image = True  # JPEG
+        elif magic_bytes[:6] in (b"GIF87a", b"GIF89a"):
+            is_valid_image = True  # GIF
+        elif magic_bytes[:4] == b"RIFF" and magic_bytes[8:12] == b"WEBP":
+            is_valid_image = True  # WebP
+        elif magic_bytes[:2] in (b"BM",):
+            is_valid_image = True  # BMP
+        elif magic_bytes[:4] in (b"\x00\x00\x01\x00",):
+            is_valid_image = True  # ICO
+
+        if not is_valid_image:
+            return render_template("upload.html", error="文件内容不是有效的图片格式"), 400
+
+        # UUID 重命名 + Path.resolve() 路径安全校验
+        safe_filename = uuid.uuid4().hex + original_ext
+        safe_path = Path(UPLOAD_DIR).resolve()
+        os.makedirs(str(safe_path), exist_ok=True)
+        final_path = (safe_path / safe_filename).resolve()
+
+        if not str(final_path).startswith(str(safe_path)):
+            return render_template("upload.html", error="文件名不合法"), 400
+
+        file.save(str(final_path))
+
+        file_url = url_for("static", filename=f"uploads/{safe_filename}")
+
+        # 审计日志
+        audit_logger.info(
+            f"用户={session['username']} "
+            f"IP={request.remote_addr} "
+            f"原始文件={file.filename} "
+            f"保存为={safe_filename} "
+            f"扩展名={original_ext} "
+            f"魔数校验={'通过' if is_valid_image else '失败'}"
+        )
+
+        return render_template(
+            "upload.html", success=True, file_url=file_url, filename=safe_filename
+        )
+
+    return render_template("upload.html")
+
+
 @app.errorhandler(429)
 def rate_limit_exceeded(_error):
     return render_template(
@@ -289,5 +396,6 @@ def rate_limit_exceeded(_error):
 
 if __name__ == "__main__":
     init_db()
+    deploy_htaccess()
     debug_enabled = os.environ.get("FLASK_DEBUG") == "1"
     app.run(debug=debug_enabled, host="0.0.0.0", port=5000)

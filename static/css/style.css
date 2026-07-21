@@ -304,3 +304,53 @@ body {
     text-align: center;
     padding: 20px 0;
 }
+
+/* 文件上传 */
+.file-input {
+    padding: 10px 0;
+    font-size: 14px;
+    width: 100%;
+}
+
+.upload-success {
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid #eee;
+    text-align: center;
+}
+
+.upload-success h3 {
+    font-size: 16px;
+    color: #2e7d32;
+    margin-bottom: 16px;
+}
+
+.avatar-preview {
+    margin: 16px auto;
+    max-width: 200px;
+}
+
+.avatar-img {
+    max-width: 200px;
+    max-height: 200px;
+    border-radius: 8px;
+    border: 2px solid #eee;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.file-info {
+    font-size: 14px;
+    color: #666;
+    margin: 6px 0;
+    word-break: break-all;
+}
+
+.file-info a {
+    color: #667eea;
+}
+
+/* 上传头像快捷入口 */
+.upload-entry {
+    margin: 20px 0 10px;
+    text-align: center;
+}

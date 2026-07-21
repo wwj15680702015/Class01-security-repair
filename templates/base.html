@@ -24,6 +24,13 @@
                     欢迎，{{ session["username"] }}
                 </span>
 
+                <a
+                    href="{{ url_for('upload') }}"
+                    class="nav-link"
+                >
+                    上传头像
+                </a>
+
                 <form
                     method="post"
                     action="{{ url_for('logout') }}"

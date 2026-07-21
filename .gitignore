@@ -8,3 +8,5 @@ instance/
 
 # Day3 runtime SQLite database
 data/users.db
+static/uploads/
+logs/
