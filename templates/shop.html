@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card">
+    <h2>商品列表</h2>
+
+    {% if cart_success %}
+    <div class="flash-msg" style="background:#e8f5e9;color:#2e7d32;">
+        已加入购物车：{{ cart_product }} × {{ cart_quantity }} = ¥{{ cart_total }}
+        （单价：¥{{ cart_price }}）
+    </div>
+    {% endif %}
+
+    {% if cart_error %}
+    <div class="error-msg">{{ cart_error }}</div>
+    {% endif %}
+
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>商品名称</th>
+                <th>价格</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for id, product in products.items() %}
+            <tr>
+                <td>{{ id }}</td>
+                <td>{{ product.name }}</td>
+                <td>¥{{ product.price }}</td>
+                <td>
+                    <form method="post" action="{{ url_for('cart') }}" class="cart-form">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="product_id" value="{{ id }}">
+                        <input type="hidden" name="product_name" value="{{ product.name }}">
+                        <input type="hidden" name="price" value="{{ product.price }}">
+                        <input type="number" name="quantity" value="1" min="1" style="width:60px;padding:4px;">
+                        <button type="submit" class="btn btn-primary" style="padding:4px 12px;font-size:13px;">加入购物车</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

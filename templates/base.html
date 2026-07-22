@@ -31,6 +31,27 @@
                     上传头像
                 </a>
 
+                <a
+                    href="{{ url_for('profile') }}?user_id=1"
+                    class="nav-link"
+                >
+                    个人中心
+                </a>
+
+                <a
+                    href="{{ url_for('shop') }}"
+                    class="nav-link"
+                >
+                    商城
+                </a>
+
+                <a
+                    href="{{ url_for('admin_panel') }}"
+                    class="nav-link"
+                >
+                    管理
+                </a>
+
                 <form
                     method="post"
                     action="{{ url_for('logout') }}"

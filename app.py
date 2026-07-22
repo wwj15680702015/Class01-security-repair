@@ -69,6 +69,14 @@ USERS = {
 # 用于不存在用户的密码校验，降低通过响应耗时枚举用户名的可能性。
 DUMMY_PASSWORD_HASH = ADMIN_HASH
 
+# 商品数据（用于价格篡改漏洞实验）
+PRODUCTS = {
+    1: {"name": "iPhone 15 Pro Max", "price": 9999.00},
+    2: {"name": "MacBook Pro 16", "price": 19999.00},
+    3: {"name": "AirPods Pro", "price": 1999.00},
+    4: {"name": "iPad Air", "price": 4999.00},
+}
+
 # 上传目录
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "uploads")
 
@@ -385,6 +393,170 @@ def upload():
         )
 
     return render_template("upload.html")
+
+
+@app.route("/profile", methods=["GET"])
+def profile():
+    if "username" not in session:
+        return redirect(url_for("login"))
+
+    user_id = request.args.get("user_id", "").strip()
+
+    if not user_id or not user_id.isdigit():
+        return render_template("profile.html", error="无效的用户ID"), 400
+
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, username, email, phone FROM users WHERE id = ?",
+            (int(user_id),)
+        )
+        row = cursor.fetchone()
+        conn.close()
+    except sqlite3.Error:
+        return render_template("profile.html", error="查询用户信息失败"), 400
+
+    if not row:
+        return render_template("profile.html", error="用户不存在"), 404
+
+    user_info = {
+        "id": row["id"],
+        "username": row["username"],
+        "email": row["email"],
+        "phone": row["phone"],
+        "balance": USERS.get(row["username"], {}).get("balance", 0),
+    }
+    return render_template("profile.html", user=user_info)
+
+
+@app.route("/recharge", methods=["POST"])
+def recharge():
+    if "username" not in session:
+        return redirect(url_for("login"))
+
+    user_id = request.form.get("user_id", "").strip()
+    amount = request.form.get("amount", "").strip()
+
+    if not user_id or not user_id.isdigit():
+        return render_template("profile.html", error="无效的用户ID"), 400
+
+    if not amount:
+        try:
+            amount_float = 0.0
+        except ValueError:
+            return render_template("profile.html", error="金额格式错误"), 400
+    else:
+        try:
+            amount_float = float(amount)
+        except ValueError:
+            return render_template("profile.html", error="金额格式错误"), 400
+
+    # 直接修改用户数据中的余额字段：balance = balance + amount
+    # 不检查 amount 是否为负数
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, username FROM users WHERE id = ?",
+            (int(user_id),)
+        )
+        row = cursor.fetchone()
+        conn.close()
+    except sqlite3.Error:
+        return render_template("profile.html", error="查询用户信息失败"), 400
+
+    if not row:
+        return render_template("profile.html", error="用户不存在"), 404
+
+    username = row["username"]
+    if username in USERS:
+        USERS[username]["balance"] = USERS[username]["balance"] + amount_float
+        print(f"[充值] 用户={username} 充值={amount_float} 新余额={USERS[username]['balance']}")
+
+    return redirect(url_for("profile", user_id=user_id))
+
+
+@app.route("/admin", methods=["GET"])
+def admin_panel():
+    if "username" not in session:
+        return redirect(url_for("login"))
+    # 垂直越权漏洞：仅检查了登录，未检查是否为管理员
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, username, email, phone FROM users ORDER BY id")
+        rows = cursor.fetchall()
+        all_users = []
+        for row in rows:
+            user_data = dict(row)
+            user_data["balance"] = USERS.get(row["username"], {}).get("balance", 0)
+            all_users.append(user_data)
+        conn.close()
+    except sqlite3.Error:
+        return render_template("admin.html", users=None, error="查询用户列表失败"), 400
+
+    return render_template("admin.html", users=all_users, error=None)
+
+
+@app.route("/admin/delete-user", methods=["POST"])
+def admin_delete_user():
+    if "username" not in session:
+        return redirect(url_for("login"))
+    # 垂直越权漏洞：任何登录用户都可以删除任意用户
+    user_id = request.form.get("user_id", "").strip()
+    if not user_id or not user_id.isdigit():
+        return render_template("admin.html", users=None, error="无效的用户ID"), 400
+
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("SELECT username FROM users WHERE id = ?", (int(user_id),))
+        row = cursor.fetchone()
+        if row and row["username"] in USERS:
+            del USERS[row["username"]]
+        cursor.execute("DELETE FROM users WHERE id = ?", (int(user_id),))
+        conn.commit()
+        conn.close()
+        print(f"[删除] 用户ID={user_id} 已被删除")
+    except sqlite3.Error as e:
+        return render_template("admin.html", users=None, error="删除用户失败"), 400
+
+    return redirect(url_for("admin_panel"))
+
+
+@app.route("/shop", methods=["GET"])
+def shop():
+    if "username" not in session:
+        return redirect(url_for("login"))
+    return render_template("shop.html", products=PRODUCTS)
+
+
+@app.route("/cart", methods=["POST"])
+def cart():
+    if "username" not in session:
+        return redirect(url_for("login"))
+    # 业务逻辑漏洞：价格由客户端提交，服务器不信任
+    product_id = request.form.get("product_id", "").strip()
+    product_name = request.form.get("product_name", "未知商品")
+    price = request.form.get("price", "0")
+    quantity = request.form.get("quantity", "1")
+
+    try:
+        total = float(price) * int(quantity)
+    except ValueError:
+        return render_template("shop.html", products=PRODUCTS, cart_error="参数格式错误"), 400
+
+    print(f"[购物车] 商品={product_name} 单价={price} 数量={quantity} 总价={total}")
+    return render_template(
+        "shop.html",
+        products=PRODUCTS,
+        cart_success=True,
+        cart_product=product_name,
+        cart_price=price,
+        cart_quantity=quantity,
+        cart_total=total,
+    )
 
 
 @app.errorhandler(429)
