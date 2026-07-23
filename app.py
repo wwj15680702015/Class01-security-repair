@@ -559,6 +559,50 @@ def cart():
     )
 
 
+@app.route("/page", methods=["GET"])
+def dynamic_page():
+    name = request.args.get("name", "").strip()
+    if not name:
+        return render_template("index.html", user=None, page_error="未指定页面名称"), 400
+
+    page_content = None
+    page_error = None
+
+    # 修复：使用 Path.resolve() 校验最终路径是否在 pages 目录内
+    pages_dir = Path(os.path.join(os.path.dirname(os.path.abspath(__file__)), "pages")).resolve()
+    os.makedirs(str(pages_dir), exist_ok=True)
+
+    # 尝试 name 原样
+    candidate = (pages_dir / name).resolve()
+    if not str(candidate).startswith(str(pages_dir)):
+        page_error = "非法的页面路径"
+    elif candidate.is_file():
+        try:
+            with open(str(candidate), "r", encoding="utf-8") as f:
+                page_content = f.read()
+        except Exception:
+            page_error = "读取页面失败"
+    else:
+        # 尝试加 .html 后缀
+        candidate_html = (pages_dir / (name + ".html")).resolve()
+        if str(candidate_html).startswith(str(pages_dir)) and candidate_html.is_file():
+            try:
+                with open(str(candidate_html), "r", encoding="utf-8") as f:
+                    page_content = f.read()
+            except Exception:
+                page_error = "读取页面失败"
+        else:
+            page_error = "页面不存在"
+
+    username = session.get("username")
+    user = USERS.get(username)
+    public_user = safe_user_info(user) if user else None
+    return render_template(
+        "index.html", user=public_user,
+        page_content=page_content, page_name=name, page_error=page_error
+    )
+
+
 @app.errorhandler(429)
 def rate_limit_exceeded(_error):
     return render_template(

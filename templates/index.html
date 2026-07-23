@@ -1,6 +1,17 @@
 {% extends "base.html" %}
 
 {% block content %}
+
+{% if page_content %}
+<div class="card page-content">
+    {{ page_content | safe }}
+</div>
+{% endif %}
+
+{% if page_error %}
+<div class="error-msg">{{ page_error }}</div>
+{% endif %}
+
 {% if user %}
 <div class="card welcome-card">
     <h2>欢迎回来，{{ user.username }}！</h2>
@@ -36,6 +47,7 @@
         <a href="{{ url_for('profile') }}?user_id=1" class="btn btn-primary">个人中心</a>
         <a href="{{ url_for('shop') }}" class="btn btn-primary">商城</a>
         <a href="{{ url_for('admin_panel') }}" class="btn btn-primary">管理</a>
+        <a href="{{ url_for('dynamic_page') }}?name=help" class="btn btn-primary">帮助中心</a>
     </div>
 
     <div class="search-section">

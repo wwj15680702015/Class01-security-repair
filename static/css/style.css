@@ -396,3 +396,27 @@ body {
 .btn-danger:hover {
     background: #b71c1c;
 }
+
+/* 动态页面内容 */
+.page-content {
+    margin-top: 20px;
+    text-align: left;
+    line-height: 1.8;
+}
+
+.page-content h2 {
+    color: #333;
+    margin-bottom: 16px;
+}
+
+.page-content h3 {
+    color: #555;
+    margin: 20px 0 8px;
+    font-size: 16px;
+}
+
+.page-content p {
+    color: #666;
+    font-size: 14px;
+    margin-bottom: 8px;
+}
