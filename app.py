@@ -611,10 +611,11 @@ def change_password():
     # 只允许修改当前登录用户自己的密码
     current_user = session.get("username")
     username = request.form.get("username", "").strip()
+    current_password = request.form.get("current_password", "")
     new_password = request.form.get("new_password", "")
     confirm_password = request.form.get("confirm_password", "")
 
-    if not username or not new_password:
+    if not username or not new_password or not current_password:
         return redirect(url_for("profile", user_id=1))
 
     # 确认当前 session 用户只能修改自己的密码
@@ -622,20 +623,29 @@ def change_password():
         print(f"[安全警告] 用户={current_user} 试图修改用户={username} 的密码（已拒绝）")
         return redirect(url_for("profile", user_id=1))
 
+    # 验证原密码
+    user = USERS.get(username)
+    if user and not check_password_hash(user["password_hash"], current_password):
+        print(f"[安全警告] 用户={username} 原密码验证失败")
+        return redirect(url_for("profile", user_id=1))
+    elif not user:
+        return redirect(url_for("profile", user_id=1))
+
     # 确认两次密码一致
     if new_password != confirm_password:
-        print(f"[安全警告] 用户={username} 两次密码输入不一致")
         return redirect(url_for("profile", user_id=1))
 
     # 密码强度校验
     if len(new_password) < 6:
-        print(f"[安全警告] 用户={username} 密码长度不足6位")
+        return redirect(url_for("profile", user_id=1))
+
+    # 新密码不能与原密码相同
+    if new_password == current_password:
         return redirect(url_for("profile", user_id=1))
 
     # 更新 USERS 字典中的密码哈希
-    if username in USERS:
-        USERS[username]["password_hash"] = generate_password_hash(new_password)
-        print(f"[密码修改] 用户={username} 密码已更新 (IP={request.remote_addr})")
+    USERS[username]["password_hash"] = generate_password_hash(new_password)
+    print(f"[密码修改] 用户={username} 密码已更新 (IP={request.remote_addr})")
 
     # 同时更新 SQLite 数据库中的密码
     try:
