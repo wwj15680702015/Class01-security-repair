@@ -373,6 +373,20 @@ body {
     text-align: center;
 }
 
+/* 修改密码区域 */
+.change-password-section {
+    margin: 24px 0;
+    padding-top: 20px;
+    border-top: 1px solid #eee;
+}
+
+.change-password-section h3 {
+    font-size: 16px;
+    color: #555;
+    margin-bottom: 12px;
+    text-align: center;
+}
+
 /* 购物车表单 */
 .cart-form {
     display: flex;
