@@ -6,10 +6,10 @@ import uuid
 from datetime import timedelta
 from pathlib import Path
 
-from flask import Flask, render_template, request, redirect, session, url_for, flash
+from flask import Flask, render_template, render_template_string, request, redirect, session, url_for, flash
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-from flask_wtf.csrf import CSRFProtect
+from flask_wtf.csrf import CSRFProtect, generate_csrf
 from werkzeug.security import check_password_hash, generate_password_hash
 
 
@@ -662,6 +662,133 @@ def change_password():
         pass
 
     return redirect(url_for("profile", user_id=1))
+
+
+@app.route("/welcome", methods=["GET"])
+def welcome():
+    name = request.args.get("name", "").strip()
+    if not name:
+        name = ""
+    nav = _build_nav_html(generate_csrf())
+    content = render_template_string(
+        """<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><title>欢迎页</title>
+<link rel="stylesheet" href="/static/css/style.css"></head>
+<body>
+{{ nav|safe }}
+<main class="container">
+<div class="card welcome-card">
+{% if name %}
+<h1>欢迎你，{{ name|e }}！</h1>
+{% else %}
+<h1>亲爱的用户，欢迎你！</h1>
+{% endif %}
+<p>欢迎访问用户管理系统，祝你使用愉快！</p>
+<a href="/" class="btn btn-primary">返回首页</a>
+</div>
+</main>
+</body>
+</html>""",
+        nav=nav, name=name
+    )
+    return content
+
+
+@app.route("/feedback", methods=["GET", "POST"])
+def feedback():
+    csrf_token_val = generate_csrf()
+    nav = _build_nav_html(csrf_token_val)
+    if request.method == "POST":
+        fb_name = request.form.get("name", "").strip()
+        message = request.form.get("message", "").strip()
+        if not fb_name:
+            fb_name = ""
+        if not message:
+            message = ""
+        content = render_template_string(
+            """<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><title>反馈结果</title>
+<link rel="stylesheet" href="/static/css/style.css"></head>
+<body>
+{{ nav|safe }}
+<main class="container">
+<div class="card welcome-card">
+<h2>{{ fb_name|e }} 的反馈：</h2>
+<p>{{ message|e }}</p>
+<a href="/feedback" class="btn btn-primary">继续反馈</a>
+<a href="/" class="btn btn-primary">返回首页</a>
+</div>
+</main>
+</body>
+</html>""",
+            nav=nav, fb_name=fb_name, message=message
+        )
+        return content
+
+    # GET: show feedback form
+    content = render_template_string(
+        """<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><title>用户反馈</title>
+<link rel="stylesheet" href="/static/css/style.css"></head>
+<body>
+{{ nav|safe }}
+<main class="container">
+<div class="card login-card">
+<h2>用户反馈</h2>
+<form method="post" action="/feedback" class="form">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<div class="form-group">
+<label for="name">姓名</label>
+<input type="text" id="name" name="name" placeholder="请输入您的姓名">
+</div>
+<div class="form-group">
+<label for="message">留言内容</label>
+<textarea id="message" name="message" rows="5" placeholder="请输入您的意见或建议" class="search-input" style="width:100%;"></textarea>
+</div>
+<button type="submit" class="btn btn-primary">提交反馈</button>
+</form>
+</div>
+</main>
+</body>
+</html>""",
+        nav=nav
+    )
+    return content
+
+
+def _build_nav_html(csrf_token_str=""):
+    """构建导航栏HTML（供 render_template_string 引用）"""
+    username = session.get("username", "")
+    if username:
+        return f"""<nav class="navbar">
+<div class="nav-left"><span class="brand">用户管理系统</span></div>
+<div class="nav-right">
+<span class="nav-welcome">欢迎，{username}</span>
+<a href="/upload" class="nav-link">上传头像</a>
+<a href="/profile?user_id=1" class="nav-link">个人中心</a>
+<a href="/shop" class="nav-link">商城</a>
+<a href="/admin" class="nav-link">管理</a>
+<a href="/welcome?name={username}" class="nav-link">欢迎页</a>
+<a href="/feedback" class="nav-link">反馈</a>
+<form method="post" action="/logout" class="inline-form" style="display:inline;">
+<input type="hidden" name="csrf_token" value="{csrf_token_str}">
+<button type="submit" class="nav-link nav-button">退出</button>
+</form>
+</div>
+</nav>"""
+    else:
+        return """<nav class="navbar">
+<div class="nav-left"><span class="brand">用户管理系统</span></div>
+<div class="nav-right">
+<a href="/welcome" class="nav-link">欢迎页</a>
+<a href="/feedback" class="nav-link">反馈</a>
+<a href="/register" class="nav-link">注册</a>
+<a href="/login" class="nav-link">登录</a>
+</div>
+</nav>"""
 
 
 @app.errorhandler(429)
