@@ -18,6 +18,7 @@
 - **密码修改**（原密码验证、CSRF Token 保护）
 - **个性化欢迎页**（SSTI 漏洞演示）
 - **用户反馈**（XSS 漏洞演示）
+- **Ping 网络诊断**（命令注入漏洞演示）
 - 安全退出登录
 - 登录频率限制
 - CSRF 防护
@@ -49,7 +50,8 @@ Class01/
 │   ├── upload.html        # 头像上传页面
 │   ├── profile.html       # 个人中心（IDOR越权漏洞）
 │   ├── admin.html         # 管理面板（垂直越权漏洞）
-│   └── shop.html          # 商城（价格篡改漏洞）
+│   ├── shop.html          # 商城（价格篡改漏洞）
+│   └── ping.html          # Ping网络诊断（命令注入漏洞）
 ├── static/
 │   ├── css/
 │   │   └── style.css      # 样式文件
@@ -126,7 +128,7 @@ Class01/
 
 ## 安全修复概览
 
-Day1 提交（38f2e1f）保留了存在多个安全漏洞的原始版本，用于漏洞分析和测试。Day2 提交（e72a599）完成了登录与会话安全修复。Day3 提交（d56128e/1045ac1）完成SQL注入漏洞版本及修复。Day4 提交（8b894a6）完成头像上传功能及文件上传安全修复。Day5 提交（f23fb16）完成个人中心、商城、管理面板功能及权限提升漏洞分析。Day6 提交（172c969）完成动态页面加载功能及路径穿越漏洞分析与修复。Day7 提交（badd307）完成密码修改功能及CSRF/越权漏洞分析与修复。Day8 提交（f652416）完成个性化页面功能及SSTI/XSS漏洞分析与修复。
+Day1 提交（38f2e1f）保留了存在多个安全漏洞的原始版本，用于漏洞分析和测试。Day2 提交（e72a599）完成了登录与会话安全修复。Day3 提交（d56128e/1045ac1）完成SQL注入漏洞版本及修复。Day4 提交（8b894a6）完成头像上传功能及文件上传安全修复。Day5 提交（f23fb16）完成个人中心、商城、管理面板功能及权限提升漏洞分析。Day6 提交（172c969）完成动态页面加载功能及路径穿越漏洞分析与修复。Day7 提交（badd307）完成密码修改功能及CSRF/越权漏洞分析与修复。Day8 提交（f652416）完成个性化页面功能及SSTI/XSS漏洞分析与修复。Day9 提交（609dedc）完成Ping网络诊断功能及命令注入漏洞分析与修复。
 
 ### Day2 安全修复（提交 e72a599）
 
@@ -213,6 +215,16 @@ Day8 新增了个性化欢迎页和用户反馈功能，并针对 SSTI、XSS 进
 | V-03 | CSRF 防护绕过 | 🟡 中危 | 移除 `@csrf.exempt` |
 | V-04 | GET 登出 | 🔴 高危 | 改为 POST 表单提交 |
 
+### Day9 漏洞分析（提交 609dedc）
+
+Day9 新增了 Ping 网络诊断功能，并针对命令注入、CSRF 进行了完整修复。
+
+| 编号 | 漏洞类型 | 风险 | 修复方式 |
+|:----:|---------|:----:|---------|
+| V-01 | 命令注入（`shell=True` + f-string → RCE） | 🔴 严重 | `shell=False` + 参数列表 + IP正则校验 |
+| V-02 | CSRF 防护绕过 | 🟡 中危 | 移除 `@csrf.exempt` |
+| V-03 | 无输入格式校验 | 🟡 中危 | IPv4 + 域名正则白名单 |
+
 ## 测试说明
 
 ### 启动测试
@@ -272,6 +284,13 @@ curl -b cookies.txt -X POST http://target:5000/change-password \
 # 9. CSRF 测试（无Token应被拦截）
 curl -b cookies.txt -X POST http://target:5000/change-password \
   -d 'username=admin&new_password=test'  # 应返回 400
+
+# 10. Ping 正常测试
+curl -b cookies.txt -X POST http://target:5000/ping -d 'ip=127.0.0.1'
+
+# 11. Ping 命令注入拦截测试（修复后）
+curl -b cookies.txt -X POST http://target:5000/ping -d 'ip=127.0.0.1;id'
+curl -b cookies.txt -X POST http://target:5000/ping -d 'ip=127.0.0.1|whoami'
 ```
 
 ## Git 提交说明
@@ -287,6 +306,7 @@ curl -b cookies.txt -X POST http://target:5000/change-password \
 | `172c969` | **Day6: 新增动态页面加载功能与路径穿越漏洞分析报告** — 路径穿越、文件包含、修复方案 |
 | `badd307` | **Day7: 新增密码修改功能与CSRF/越权漏洞分析报告** — CSRF、IDOR、原密码验证、7项漏洞修复 |
 | `f652416` | **Day8: 新增个性化页面功能与SSTI/XSS漏洞分析报告** — SSTI、XSS、CSRF、GET登出修复 |
+| `609dedc` | **Day9: 新增Ping网络诊断功能与命令注入漏洞分析报告** — 命令注入、CSRF、输入校验修复 |
 
 > **重要：** Day1 提交是有意保留的漏洞基线，包含大量高危安全隐患。**严禁**将其用于任何形式的生产环境或对外部署。
 
