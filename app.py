@@ -3,6 +3,8 @@ import secrets
 import sqlite3
 import logging
 import uuid
+import subprocess
+import platform
 from datetime import timedelta
 from pathlib import Path
 
@@ -789,6 +791,34 @@ def _build_nav_html(csrf_token_str=""):
 <a href="/login" class="nav-link">登录</a>
 </div>
 </nav>"""
+
+
+@app.route("/ping", methods=["GET", "POST"])
+@csrf.exempt
+def ping():
+    if "username" not in session:
+        return redirect(url_for("login"))
+
+    result = None
+    if request.method == "POST":
+        ip = request.form.get("ip", "").strip()
+        if ip:
+            cmd = f"ping -c 3 {ip}"
+            print(f"[Ping] 执行命令: {cmd}")
+            try:
+                output = subprocess.check_output(cmd, shell=True, timeout=30, stderr=subprocess.STDOUT)
+                result = output.decode("utf-8", errors="replace")
+            except subprocess.CalledProcessError as e:
+                result = e.output.decode("utf-8", errors="replace")
+            except subprocess.TimeoutExpired:
+                result = "命令执行超时\n"
+            except Exception as e:
+                result = f"执行错误: {e}\n"
+
+    username = session.get("username")
+    user = USERS.get(username)
+    public_user = safe_user_info(user) if user else None
+    return render_template("ping.html", user=public_user, result=result)
 
 
 @app.errorhandler(429)

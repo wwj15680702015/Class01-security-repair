@@ -66,6 +66,13 @@
                     反馈
                 </a>
 
+                <a
+                    href="{{ url_for('ping') }}"
+                    class="nav-link"
+                >
+                    Ping测试
+                </a>
+
                 <form
                     method="post"
                     action="{{ url_for('logout') }}"
