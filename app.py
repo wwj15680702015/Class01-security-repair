@@ -794,7 +794,6 @@ def _build_nav_html(csrf_token_str=""):
 
 
 @app.route("/ping", methods=["GET", "POST"])
-@csrf.exempt
 def ping():
     if "username" not in session:
         return redirect(url_for("login"))
@@ -802,18 +801,45 @@ def ping():
     result = None
     if request.method == "POST":
         ip = request.form.get("ip", "").strip()
-        if ip:
-            cmd = f"ping -c 3 {ip}"
-            print(f"[Ping] 执行命令: {cmd}")
+
+        # 校验 IP 格式：只允许 IPv4 地址和合法域名
+        import re
+        is_ipv4 = re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', ip)
+        is_domain = re.match(r'^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*$', ip)
+
+        if not ip:
+            result = "请输入 IP 地址或域名"
+        elif not is_ipv4 and not is_domain:
+            result = "无效的 IP 地址或域名格式"
+        elif is_ipv4:
+            # 校验 IPv4 每段范围
+            parts = ip.split('.')
+            valid = all(0 <= int(p) <= 255 for p in parts)
+            if not valid:
+                result = "IP 地址范围无效（每段 0-255）"
+            else:
+                cmd = ["ping", "-c", "3", ip]
+                try:
+                    output = subprocess.check_output(cmd, shell=False, timeout=30, stderr=subprocess.STDOUT)
+                    result = output.decode("utf-8", errors="replace")
+                except subprocess.CalledProcessError as e:
+                    result = e.output.decode("utf-8", errors="replace")
+                except subprocess.TimeoutExpired:
+                    result = "命令执行超时\n"
+                except Exception as e:
+                    result = f"执行错误"
+        else:
+            # 域名 ping（安全）
+            cmd = ["ping", "-c", "3", ip]
             try:
-                output = subprocess.check_output(cmd, shell=True, timeout=30, stderr=subprocess.STDOUT)
+                output = subprocess.check_output(cmd, shell=False, timeout=30, stderr=subprocess.STDOUT)
                 result = output.decode("utf-8", errors="replace")
             except subprocess.CalledProcessError as e:
                 result = e.output.decode("utf-8", errors="replace")
             except subprocess.TimeoutExpired:
                 result = "命令执行超时\n"
             except Exception as e:
-                result = f"执行错误: {e}\n"
+                result = f"执行错误"
 
     username = session.get("username")
     user = USERS.get(username)

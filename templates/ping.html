@@ -5,6 +5,7 @@
     <h2>Ping 网络诊断</h2>
 
     <form method="post" action="{{ url_for('ping') }}" class="form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-group">
             <label for="ip">IP 地址或域名</label>
             <input
